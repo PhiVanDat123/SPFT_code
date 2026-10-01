@@ -54,11 +54,78 @@ python -m pip install -r requirements-eval.txt
 MODEL_NAME_OR_PATH=/path/to/checkpoint EVAL_CUDA_VISIBLE_DEVICES=0,1 bash verl/eval_codegen.sh
 ```
 
-MultiPL-E eval requires the official checkout and Docker or Podman for executing generated code:
+MultiPL-E generation on the GPU server:
 
 ```bash
-git clone https://github.com/nuprl/MultiPL-E /path/to/MultiPL-E
-MODEL_NAME_OR_PATH=/path/to/checkpoint CODEGEN_EVALS=humaneval,multiple MULTIPLE_REPO=/path/to/MultiPL-E bash verl/eval_codegen.sh
+git clone https://github.com/nuprl/MultiPL-E /home/datpv/SPFT_code/MultiPL-E
+
+MODEL_NAME_OR_PATH=/path/to/checkpoint \
+CODEGEN_EVALS=multiple \
+MULTIPLE_REPO=/home/datpv/SPFT_code/MultiPL-E \
+MULTIPLE_RUN_TESTS=false \
+OUTPUT_DIR=/home/datpv/SPFT_code/verl/codegen_eval_outputs/spft_codegen_multipl_e_20 \
+bash verl/eval_codegen.sh
 ```
 
-`MULTIPLE_LANGS` defaults to `cpp,java,php,ts,cs,sh,js`, matching the MultiPL-E translations available in the current official dataset config. MultiPL-E defaults to greedy/pass@1-style generation with `MULTIPLE_TEMPERATURE=0.0` and `MULTIPLE_COMPLETION_LIMIT=1`; `MULTIPLE_BATCH_SIZE` only changes throughput. Use EvalPlus `humaneval` pass@1 for the paper's Python column. EvalPlus and MultiPL-E download their benchmark data as needed. Outputs default to `verl/codegen_eval_outputs/...`.
+`MULTIPLE_LANGS` defaults to `cpp,java,php,ts,cs,sh,js`, matching the MultiPL-E translations available in the current official dataset config. MultiPL-E defaults to `MULTIPLE_TEMPERATURE=0.2`, `MULTIPLE_COMPLETION_LIMIT=20`, and `MULTIPLE_BATCH_SIZE=20`; `automodel.py` requires a strictly positive temperature. `MULTIPLE_RUN_TESTS=false` only generates completions, which is useful when the GPU server has no Docker daemon.
+
+Generate the separate MultiPL-E Python column on the server:
+
+```bash
+cd /home/datpv/SPFT_code/MultiPL-E
+
+python dataset_builder/prepare_prompts_for_hfhub.py \
+  --lang dataset_builder/humaneval_to_py.py \
+  --original-dataset humaneval \
+  --originals datasets/originals-with-cleaned-doctests \
+  --output jsonl:prompts/humaneval-py-reworded.jsonl
+
+python automodel.py \
+  --name /path/to/checkpoint \
+  --use-local \
+  --dataset prompts/humaneval-py-reworded.jsonl \
+  --temperature 0.2 \
+  --batch-size 20 \
+  --completion-limit 20 \
+  --output-dir-prefix /home/datpv/SPFT_code/verl/codegen_eval_outputs/spft_codegen_multipl_e_20/multiple/py
+```
+
+Copy generated completions from the server to a local machine with Docker:
+
+```powershell
+scp -r datpv@worker-0:/home/datpv/SPFT_code/verl/codegen_eval_outputs/spft_codegen_multipl_e_20 C:\Users\Admin\Downloads\spft_codegen_multipl_e_20
+```
+
+Evaluate the completions locally with Docker. Use short local paths before running `pass_k.py`; long Windows paths can make Python miss the result files.
+
+```powershell
+cd "C:\Users\Admin\Downloads\final spft\MultiPL-E"
+
+$srcRoot = "C:\Users\Admin\Downloads\spft_codegen_multipl_e_20\multiple"
+$dstRoot = "C:\meval20\multiple"
+New-Item -ItemType Directory -Force $dstRoot | Out-Null
+
+foreach ($lang in @("py","cpp","cs","java","js","php","sh","ts")) {
+    $run = Get-ChildItem "$srcRoot\$lang" -Directory | Select-Object -First 1
+    if ($null -eq $run) { Write-Host "Skipping missing $lang"; continue }
+    $dst = "$dstRoot\$lang"
+    New-Item -ItemType Directory -Force $dst | Out-Null
+    robocopy $run.FullName $dst /E
+    docker run --rm --network none -v "${dst}:/out:rw" ghcr.io/nuprl/multipl-e-evaluation --dir /out --output-dir /out
+}
+
+python pass_k.py `
+  C:\meval20\multiple\py `
+  C:\meval20\multiple\cpp `
+  C:\meval20\multiple\java `
+  C:\meval20\multiple\php `
+  C:\meval20\multiple\ts `
+  C:\meval20\multiple\cs `
+  C:\meval20\multiple\sh `
+  C:\meval20\multiple\js `
+  > C:\meval20\multiple\pass_k.txt
+
+Get-Content C:\meval20\multiple\pass_k.txt
+```
+
+The `Estimate` column times 100 is the paper-style percentage for each MultiPL-E language. The MultiPL-E average is the mean of Python, C++, Java, PHP, TS, C#, Bash, and JS. EvalPlus and MultiPL-E outputs default to `verl/codegen_eval_outputs/...`.

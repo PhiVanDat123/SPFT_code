@@ -48,9 +48,9 @@ for name in "${names[@]}"; do
                         --name "$MODEL_NAME_OR_PATH" \
                         --root-dataset humaneval \
                         --lang "$lang" \
-                        --temperature "${MULTIPLE_TEMPERATURE:-0.0}" \
-                        --batch-size "${MULTIPLE_BATCH_SIZE:-8}" \
-                        --completion-limit "${MULTIPLE_COMPLETION_LIMIT:-1}" \
+                        --temperature "${MULTIPLE_TEMPERATURE:-0.2}" \
+                        --batch-size "${MULTIPLE_BATCH_SIZE:-20}" \
+                        --completion-limit "${MULTIPLE_COMPLETION_LIMIT:-20}" \
                         --output-dir-prefix "$lang_out"
                     generated="$(find "$lang_out" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
                     [[ -n "$generated" ]] || { echo "No MultiPL-E output for $lang" >&2; exit 2; }
