@@ -61,4 +61,4 @@ git clone https://github.com/nuprl/MultiPL-E /path/to/MultiPL-E
 MODEL_NAME_OR_PATH=/path/to/checkpoint CODEGEN_EVALS=humaneval,multiple MULTIPLE_REPO=/path/to/MultiPL-E bash verl/eval_codegen.sh
 ```
 
-`MULTIPLE_LANGS` defaults to `cpp,java,php,ts,cs,sh,js`, matching the MultiPL-E translations available in the current official dataset config. Use EvalPlus `humaneval` pass@1 for the paper's Python column. EvalPlus and MultiPL-E download their benchmark data as needed. Outputs default to `verl/codegen_eval_outputs/...`.
+`MULTIPLE_LANGS` defaults to `cpp,java,php,ts,cs,sh,js`, matching the MultiPL-E translations available in the current official dataset config. MultiPL-E defaults to greedy/pass@1-style generation with `MULTIPLE_TEMPERATURE=0.0` and `MULTIPLE_COMPLETION_LIMIT=1`; `MULTIPLE_BATCH_SIZE` only changes throughput. Use EvalPlus `humaneval` pass@1 for the paper's Python column. EvalPlus and MultiPL-E download their benchmark data as needed. Outputs default to `verl/codegen_eval_outputs/...`.
