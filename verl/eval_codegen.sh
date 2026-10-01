@@ -35,7 +35,7 @@ for name in "${names[@]}"; do
         multiple)
             : "${MULTIPLE_REPO:?Set MULTIPLE_REPO to a local MultiPL-E checkout for CODEGEN_EVALS=multiple}"
             multiple_repo="$(cd "$MULTIPLE_REPO" && pwd)"
-            languages="${MULTIPLE_LANGS:-py,cpp,java,php,ts,cs,sh,js}"
+            languages="${MULTIPLE_LANGS:-cpp,java,php,ts,cs,sh,js}"
             mkdir -p "$output/multiple"
             (
                 cd "$multiple_repo"
