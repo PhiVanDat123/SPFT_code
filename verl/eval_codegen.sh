@@ -4,7 +4,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(cd "$script_dir/.." && pwd)"
 if [[ "${1:-}" == --help ]]; then
     echo 'MODEL_NAME_OR_PATH=/path/to/checkpoint EVAL_CUDA_VISIBLE_DEVICES=0,1 bash verl/eval_codegen.sh'
-    echo 'Set CODEGEN_EVALS=humaneval,multiple to include MultiPL-E when MULTIPLE_REPO points to a checkout.'
+    echo 'Set CODEGEN_EVALS=humaneval,multiple to include paper-style MultiPL-E when MULTIPLE_REPO points to a checkout.'
     exit 0
 fi
 : "${MODEL_NAME_OR_PATH:?Set MODEL_NAME_OR_PATH to a saved Hugging Face checkpoint or model ID}"
@@ -35,23 +35,46 @@ for name in "${names[@]}"; do
         multiple)
             : "${MULTIPLE_REPO:?Set MULTIPLE_REPO to a local MultiPL-E checkout for CODEGEN_EVALS=multiple}"
             multiple_repo="$(cd "$MULTIPLE_REPO" && pwd)"
-            languages="${MULTIPLE_LANGS:-cpp,java,php,ts,cs,sh,js}"
+            languages="${MULTIPLE_LANGS:-py,cpp,java,php,ts,cs,sh,js}"
             mkdir -p "$output/multiple"
             (
                 cd "$multiple_repo"
                 IFS=',' read -ra langs <<< "$languages"
                 result_dirs=()
+                model_label="${MULTIPLE_NAME_OVERRIDE:-$(basename "$MODEL_NAME_OR_PATH")}"
+                model_label="${model_label//-/_}"
                 for lang in "${langs[@]}"; do
                     lang_out="$output/multiple/$lang"
                     mkdir -p "$lang_out"
-                    "${PYTHON_BIN:-python}" automodel.py \
-                        --name "$MODEL_NAME_OR_PATH" \
-                        --root-dataset humaneval \
-                        --lang "$lang" \
-                        --temperature "${MULTIPLE_TEMPERATURE:-0.2}" \
-                        --batch-size "${MULTIPLE_BATCH_SIZE:-20}" \
-                        --completion-limit "${MULTIPLE_COMPLETION_LIMIT:-20}" \
+                    common_args=(
+                        --name "$MODEL_NAME_OR_PATH"
+                        --name-override "$model_label"
+                        --temperature "${MULTIPLE_TEMPERATURE:-0.2}"
+                        --top-p "${MULTIPLE_TOP_P:-0.95}"
+                        --batch-size "${MULTIPLE_BATCH_SIZE:-20}"
+                        --completion-limit "${MULTIPLE_COMPLETION_LIMIT:-200}"
+                        --max-tokens "${MULTIPLE_MAX_TOKENS:-1024}"
                         --output-dir-prefix "$lang_out"
+                    )
+                    if [[ "$lang" == py ]]; then
+                        py_prompt="${MULTIPLE_PY_PROMPT:-$output/multiple/humaneval-py-reworded.jsonl}"
+                        if [[ ! -f "$py_prompt" ]]; then
+                            "${PYTHON_BIN:-python}" dataset_builder/prepare_prompts_for_hfhub.py \
+                                --lang dataset_builder/humaneval_to_py.py \
+                                --original-dataset humaneval \
+                                --originals datasets/originals-with-cleaned-doctests \
+                                --output "jsonl:$py_prompt"
+                        fi
+                        "${PYTHON_BIN:-python}" automodel.py \
+                            "${common_args[@]}" \
+                            --use-local \
+                            --dataset "$py_prompt"
+                    else
+                        "${PYTHON_BIN:-python}" automodel.py \
+                            "${common_args[@]}" \
+                            --root-dataset humaneval \
+                            --lang "$lang"
+                    fi
                     generated="$(find "$lang_out" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
                     [[ -n "$generated" ]] || { echo "No MultiPL-E output for $lang" >&2; exit 2; }
                     if [[ "${MULTIPLE_RUN_TESTS:-true}" == true ]]; then

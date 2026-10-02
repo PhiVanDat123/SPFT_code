@@ -67,28 +67,7 @@ OUTPUT_DIR=/home/datpv/SPFT_code/verl/codegen_eval_outputs/spft_codegen_multipl_
 bash verl/eval_codegen.sh
 ```
 
-`MULTIPLE_LANGS` defaults to `cpp,java,php,ts,cs,sh,js`, matching the MultiPL-E translations available in the current official dataset config. MultiPL-E defaults to `MULTIPLE_TEMPERATURE=0.2`, `MULTIPLE_COMPLETION_LIMIT=20`, and `MULTIPLE_BATCH_SIZE=20`; `automodel.py` requires a strictly positive temperature. `MULTIPLE_RUN_TESTS=false` only generates completions, which is useful when the GPU server has no Docker daemon.
-
-Generate the separate MultiPL-E Python column on the server:
-
-```bash
-cd /home/datpv/SPFT_code/MultiPL-E
-
-python dataset_builder/prepare_prompts_for_hfhub.py \
-  --lang dataset_builder/humaneval_to_py.py \
-  --original-dataset humaneval \
-  --originals datasets/originals-with-cleaned-doctests \
-  --output jsonl:prompts/humaneval-py-reworded.jsonl
-
-python automodel.py \
-  --name /path/to/checkpoint \
-  --use-local \
-  --dataset prompts/humaneval-py-reworded.jsonl \
-  --temperature 0.2 \
-  --batch-size 20 \
-  --completion-limit 20 \
-  --output-dir-prefix /home/datpv/SPFT_code/verl/codegen_eval_outputs/spft_codegen_multipl_e_20/multiple/py
-```
+`MULTIPLE_LANGS` defaults to `py,cpp,java,php,ts,cs,sh,js`, matching the eight-language MultiPL-E reporting setup. MultiPL-E defaults to `MULTIPLE_TEMPERATURE=0.2`, `MULTIPLE_TOP_P=0.95`, `MULTIPLE_COMPLETION_LIMIT=200`, `MULTIPLE_MAX_TOKENS=1024`, and `MULTIPLE_BATCH_SIZE=20`; `automodel.py` requires a strictly positive temperature. The script builds the Python reworded prompt JSONL automatically from `datasets/originals-with-cleaned-doctests`; override it with `MULTIPLE_PY_PROMPT=/path/to/humaneval-py-reworded.jsonl` if you already prepared one. Output run names use the checkpoint basename by default to avoid very long paths; set `MULTIPLE_NAME_OVERRIDE=short_name` to choose one explicitly. `MULTIPLE_RUN_TESTS=false` only generates completions, which is useful when the GPU server has no Docker daemon.
 
 Copy generated completions from the server to a local machine with Docker:
 
